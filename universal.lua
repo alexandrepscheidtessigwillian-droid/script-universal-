@@ -590,7 +590,7 @@ spawn(function()
                 criarBloco(pos)
             end
         end
-        wait(0.5) -- a cada meio segundo cria um bloco embaixo
+        wait(0.1,3) -- a cada meio segundo cria um bloco embaixo
     end
 end)
 
