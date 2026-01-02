@@ -399,148 +399,145 @@ minimizeBtn.MouseButton1Click:Connect(function()
 end)
 
 ---------------------------------------------------
--- FREECAM MOBILE COMPLETA
+-- FREE CAM COMPLETA (INTEGRÁVEL)
 ---------------------------------------------------
-local FreeCamAtivo = false
-local cameraSpeed = 2
-local verticalSpeed = 2
-local cam = workspace.CurrentCamera
-local moveVector = Vector3.new(0,0,0)
 
--- Botão na sua rolagem
-local freeCamBtn = Instance.new("TextButton", scroll)
-freeCamBtn.Size = UDim2.new(1,0,0,25)
-freeCamBtn.Text = "FreeCam"
-freeCamBtn.Font = Enum.Font.GothamBold
-freeCamBtn.TextSize = 14
-freeCamBtn.TextColor3 = Color3.new(1,1,1)
-freeCamBtn.BackgroundColor3 = Color3.fromRGB(0,150,255)
-Instance.new("UICorner", freeCamBtn)
+local UIS = game:GetService("UserInputService")
+local camera = workspace.CurrentCamera
 
--- Botão X para sair da FreeCam
-local exitCamBtn = Instance.new("TextButton", gui)
-exitCamBtn.Size = UDim2.new(0,35,0,35)
-exitCamBtn.Position = UDim2.new(1,-45,0,10)
-exitCamBtn.Text = "X"
-exitCamBtn.Font = Enum.Font.GothamBold
-exitCamBtn.TextSize = 20
-exitCamBtn.TextColor3 = Color3.new(1,1,1)
-exitCamBtn.BackgroundColor3 = Color3.fromRGB(200,0,0)
-Instance.new("UICorner", exitCamBtn)
-exitCamBtn.Visible = false
+local FREECAM_ATIVA = false
+local camSpeed = 1.5
+local moveDir = Vector3.zero
+local rotating = false
+local lastPos
 
--- Joystick para andar
-local joystickFrame = Instance.new("Frame", gui)
-joystickFrame.Size = UDim2.new(0,120,0,120)
-joystickFrame.Position = UDim2.new(0,20,1,-250) -- ajustado mais para cima
-joystickFrame.BackgroundTransparency = 0.5
-joystickFrame.BackgroundColor3 = Color3.fromRGB(50,50,50)
-joystickFrame.Visible = false
-Instance.new("UICorner", joystickFrame)
+---------------------------------------------------
+-- BOTÃO NO PAINEL
+---------------------------------------------------
+local freeCamToggle = criarToggle("Free Cam", false, function(val)
+    if val then
+        ativarFreeCam()
+    else
+        desativarFreeCam()
+    end
+end)
+freeCamToggle.Parent = scroll
 
-local knob = Instance.new("Frame", joystickFrame)
-knob.Size = UDim2.new(0,50,0,50)
-knob.Position = UDim2.new(0.5,-25,0.5,-25)
-knob.BackgroundColor3 = Color3.fromRGB(150,150,150)
-Instance.new("UICorner", knob)
+---------------------------------------------------
+-- GUI DA FREE CAM (X + TELEPORTAR)
+---------------------------------------------------
+local camGui = Instance.new("ScreenGui")
+camGui.Name = "FreeCamGui"
+camGui.Parent = PlayerGui
+camGui.ResetOnSpawn = false
+camGui.Enabled = false
 
-local knobPressed = false
-local UserInputService = game:GetService("UserInputService")
+-- BOTÃO SAIR (X)
+local exitBtn = Instance.new("TextButton", camGui)
+exitBtn.Size = UDim2.new(0,45,0,45)
+exitBtn.Position = UDim2.new(1,-60,0,20)
+exitBtn.Text = "X"
+exitBtn.Font = Enum.Font.GothamBold
+exitBtn.TextSize = 18
+exitBtn.TextColor3 = Color3.new(1,1,1)
+exitBtn.BackgroundColor3 = Color3.fromRGB(200,50,50)
+Instance.new("UICorner", exitBtn)
 
--- Subir / Descer
-local upBtn = Instance.new("TextButton", gui)
-upBtn.Size = UDim2.new(0,35,0,35)
-upBtn.Position = UDim2.new(0,20,1,-300)
-upBtn.Text = "▲"
-upBtn.Font = Enum.Font.GothamBold
-upBtn.TextSize = 20
-upBtn.TextColor3 = Color3.new(1,1,1)
-upBtn.BackgroundColor3 = Color3.fromRGB(0,150,0)
-Instance.new("UICorner", upBtn)
-upBtn.Visible = false
+-- BOTÃO TELEPORTAR (AFASTADO DO X)
+local tpBtn = Instance.new("TextButton", camGui)
+tpBtn.Size = UDim2.new(0,160,0,45)
+tpBtn.Position = UDim2.new(1,-230,0,20)
+tpBtn.Text = "Teleportar Aqui"
+tpBtn.Font = Enum.Font.GothamBold
+tpBtn.TextSize = 14
+tpBtn.TextColor3 = Color3.new(1,1,1)
+tpBtn.BackgroundColor3 = Color3.fromRGB(0,170,255)
+Instance.new("UICorner", tpBtn)
 
-local downBtn = Instance.new("TextButton", gui)
-downBtn.Size = UDim2.new(0,35,0,35)
-downBtn.Position = UDim2.new(0,20,1,-250)
-downBtn.Text = "▼"
-downBtn.Font = Enum.Font.GothamBold
-downBtn.TextSize = 20
-downBtn.TextColor3 = Color3.new(1,1,1)
-downBtn.BackgroundColor3 = Color3.fromRGB(0,150,0)
-Instance.new("UICorner", downBtn)
-downBtn.Visible = false
+---------------------------------------------------
+-- CONTROLE DE MOVIMENTO (MOBILE + PC)
+---------------------------------------------------
+UIS.InputBegan:Connect(function(input, gpe)
+    if not FREECAM_ATIVA or gpe then return end
 
-local verticalMove = 0
+    if input.UserInputType == Enum.UserInputType.MouseButton2
+    or input.UserInputType == Enum.UserInputType.Touch then
+        rotating = true
+        lastPos = input.Position
+    end
 
--- Controles do knob
-knob.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
-        knobPressed = true
+    if input.KeyCode == Enum.KeyCode.W then moveDir += Vector3.new(0,0,-1) end
+    if input.KeyCode == Enum.KeyCode.S then moveDir += Vector3.new(0,0,1) end
+    if input.KeyCode == Enum.KeyCode.A then moveDir += Vector3.new(-1,0,0) end
+    if input.KeyCode == Enum.KeyCode.D then moveDir += Vector3.new(1,0,0) end
+    if input.KeyCode == Enum.KeyCode.Space then moveDir += Vector3.new(0,1,0) end
+    if input.KeyCode == Enum.KeyCode.LeftShift then moveDir += Vector3.new(0,-1,0) end
+end)
+
+UIS.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton2
+    or input.UserInputType == Enum.UserInputType.Touch then
+        rotating = false
+    end
+    moveDir = Vector3.zero
+end)
+
+UIS.InputChanged:Connect(function(input)
+    if not FREECAM_ATIVA or not rotating then return end
+    if input.UserInputType == Enum.UserInputType.MouseMovement
+    or input.UserInputType == Enum.UserInputType.Touch then
+        local delta = input.Position - lastPos
+        lastPos = input.Position
+
+        local rotX = -delta.Y * 0.002
+        local rotY = -delta.X * 0.002
+
+        camera.CFrame = camera.CFrame * CFrame.Angles(rotX, rotY, 0)
     end
 end)
 
-knob.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
-        knobPressed = false
-        knob.Position = UDim2.new(0.5,-25,0.5,-25)
-        moveVector = Vector3.new(0,0,0)
+---------------------------------------------------
+-- LOOP DA FREE CAM
+---------------------------------------------------
+RunService.RenderStepped:Connect(function(dt)
+    if not FREECAM_ATIVA then return end
+    camera.CFrame = camera.CFrame * CFrame.new(moveDir * camSpeed)
+end)
+
+---------------------------------------------------
+-- ATIVAR / DESATIVAR
+---------------------------------------------------
+function ativarFreeCam()
+    FREECAM_ATIVA = true
+    camGui.Enabled = true
+    camera.CameraType = Enum.CameraType.Scriptable
+
+    local char = LocalPlayer.Character
+    if char and char:FindFirstChild("HumanoidRootPart") then
+        camera.CFrame = char.HumanoidRootPart.CFrame * CFrame.new(0,3,8)
     end
+end
+
+function desativarFreeCam()
+    FREECAM_ATIVA = false
+    camGui.Enabled = false
+    camera.CameraType = Enum.CameraType.Custom
+    moveDir = Vector3.zero
+end
+
+---------------------------------------------------
+-- BOTÕES
+---------------------------------------------------
+exitBtn.MouseButton1Click:Connect(function()
+    desativarFreeCam()
 end)
 
-UserInputService.InputChanged:Connect(function(input)
-    if knobPressed and (input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseMovement) then
-        local pos = Vector2.new(input.Position.X, input.Position.Y)
-        local delta = pos - joystickFrame.AbsolutePosition - Vector2.new(60,60)
-        local radius = math.clamp(delta.Magnitude,0,50)
-        local dir = delta.Unit * radius
-        knob.Position = UDim2.new(0,60+dir.X-25,0,60+dir.Y-25)
-        moveVector = Vector3.new(dir.X/50,0,dir.Y/50)
+tpBtn.MouseButton1Click:Connect(function()
+    local char = LocalPlayer.Character
+    if char and char:FindFirstChild("HumanoidRootPart") then
+        char.HumanoidRootPart.CFrame = camera.CFrame
     end
-end)
-
--- Subir/Descer
-upBtn.MouseButton1Click:Connect(function()
-    verticalMove = verticalSpeed
-end)
-downBtn.MouseButton1Click:Connect(function()
-    verticalMove = -verticalSpeed
-end)
-
--- Ativar FreeCam
-freeCamBtn.MouseButton1Click:Connect(function()
-    FreeCamAtivo = true
-    exitCamBtn.Visible = true
-    joystickFrame.Visible = true
-    upBtn.Visible = true
-    downBtn.Visible = true
-    -- Tirar a câmera do personagem
-    cam.CameraType = Enum.CameraType.Scriptable
-    local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-    if hrp then
-        cam.CFrame = CFrame.new(hrp.Position + Vector3.new(0,5,0))
-    end
-end)
-
--- Fechar FreeCam
-exitCamBtn.MouseButton1Click:Connect(function()
-    FreeCamAtivo = false
-    exitCamBtn.Visible = false
-    joystickFrame.Visible = false
-    upBtn.Visible = false
-    downBtn.Visible = false
-    cam.CameraType = Enum.CameraType.Custom
-end)
-
--- Movimento da câmera
-RunService.RenderStepped:Connect(function()
-    if FreeCamAtivo then
-        local cf = cam.CFrame
-        local forward = cf.LookVector * moveVector.Z
-        local right = cf.RightVector * moveVector.X
-        local up = Vector3.new(0, verticalMove, 0)
-        cam.CFrame = cf + (forward + right + up) * cameraSpeed
-        verticalMove = 0 -- reset após cada frame
-    end
+    desativarFreeCam()
 end)
 
 ---------------------------------------------------
