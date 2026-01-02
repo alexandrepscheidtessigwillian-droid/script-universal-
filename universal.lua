@@ -399,145 +399,168 @@ minimizeBtn.MouseButton1Click:Connect(function()
 end)
 
 ---------------------------------------------------
--- FREE CAM COMPLETA (INTEGRÁVEL)
+-- SERVIÇOS
 ---------------------------------------------------
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
 
-local UIS = game:GetService("UserInputService")
-local camera = workspace.CurrentCamera
-
-local FREECAM_ATIVA = false
-local camSpeed = 1.5
-local moveDir = Vector3.zero
-local rotating = false
-local lastPos
+local player = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
 
 ---------------------------------------------------
--- BOTÃO NO PAINEL
+-- VARIÁVEIS
 ---------------------------------------------------
-local freeCamToggle = criarToggle("Free Cam", false, function(val)
-    if val then
-        ativarFreeCam()
-    else
-        desativarFreeCam()
+local FREECAM = false
+local savedCFrame
+local camSpeed = 2
+
+---------------------------------------------------
+-- GUI BASE (usa PlayerGui)
+---------------------------------------------------
+local gui = Instance.new("ScreenGui")
+gui.Name = "FreeCamGui"
+gui.ResetOnSpawn = false
+gui.Parent = player:WaitForChild("PlayerGui")
+
+---------------------------------------------------
+-- BOTÃO SAIR (X)
+---------------------------------------------------
+local exitBtn = Instance.new("TextButton")
+exitBtn.Size = UDim2.new(0,40,0,40)
+exitBtn.Position = UDim2.new(1,-50,0,10)
+exitBtn.Text = "X"
+exitBtn.Visible = false
+exitBtn.BackgroundColor3 = Color3.fromRGB(180,50,50)
+exitBtn.TextColor3 = Color3.new(1,1,1)
+exitBtn.Parent = gui
+
+---------------------------------------------------
+-- BOTÃO TELEPORTAR (AFSTADO DO X)
+---------------------------------------------------
+local tpBtn = Instance.new("TextButton")
+tpBtn.Size = UDim2.new(0,140,0,40)
+tpBtn.Position = UDim2.new(1,-420,0,10) -- 👈 afastado
+tpBtn.Text = "TELEPORTAR"
+tpBtn.Visible = false
+tpBtn.BackgroundColor3 = Color3.fromRGB(50,150,255)
+tpBtn.TextColor3 = Color3.new(1,1,1)
+tpBtn.Parent = gui
+
+---------------------------------------------------
+-- SETAS
+---------------------------------------------------
+local arrows = {}
+
+local function createArrow(txt,pos)
+    local b = Instance.new("TextButton")
+    b.Size = UDim2.new(0,50,0,50)
+    b.Position = pos
+    b.Text = txt
+    b.BackgroundColor3 = Color3.fromRGB(40,40,40)
+    b.TextColor3 = Color3.new(1,1,1)
+    b.Visible = false
+    b.Parent = gui
+    return b
+end
+
+arrows.up = createArrow("↑",UDim2.new(0.5,-25,1,-220))
+arrows.down = createArrow("↓",UDim2.new(0.5,-25,1,-160))
+arrows.left = createArrow("←",UDim2.new(0.5,-80,1,-190))
+arrows.right = createArrow("→",UDim2.new(0.5,30,1,-190))
+
+---------------------------------------------------
+-- ENTRAR FREECAM (CHAME ESSE BOTÃO NO SEU PAINEL)
+---------------------------------------------------
+_G.StartFreeCam = function()
+    if FREECAM then return end
+    FREECAM = true
+
+    savedCFrame = Camera.CFrame
+    Camera.CameraType = Enum.CameraType.Scriptable
+    Camera.CFrame = savedCFrame
+
+    exitBtn.Visible = true
+    tpBtn.Visible = true
+    for _,b in pairs(arrows) do b.Visible = true end
+end
+
+---------------------------------------------------
+-- SAIR FREECAM
+---------------------------------------------------
+local function stopFreeCam()
+    FREECAM = false
+    Camera.CameraType = Enum.CameraType.Custom
+    Camera.CFrame = savedCFrame
+
+    exitBtn.Visible = false
+    tpBtn.Visible = false
+    for _,b in pairs(arrows) do b.Visible = false end
+end
+
+exitBtn.MouseButton1Click:Connect(stopFreeCam)
+
+---------------------------------------------------
+-- TELEPORTE
+---------------------------------------------------
+tpBtn.MouseButton1Click:Connect(function()
+    local char = player.Character
+    if char and char:FindFirstChild("HumanoidRootPart") then
+        char.HumanoidRootPart.CFrame = Camera.CFrame
+    end
+    stopFreeCam()
+end)
+
+---------------------------------------------------
+-- SETAS MOVIMENTO
+---------------------------------------------------
+RunService.RenderStepped:Connect(function()
+    if not FREECAM then return end
+
+    if arrows.up:IsPressed() then
+        Camera.CFrame *= CFrame.new(0,0,-camSpeed)
+    end
+    if arrows.down:IsPressed() then
+        Camera.CFrame *= CFrame.new(0,0,camSpeed)
+    end
+    if arrows.left:IsPressed() then
+        Camera.CFrame *= CFrame.new(-camSpeed,0,0)
+    end
+    if arrows.right:IsPressed() then
+        Camera.CFrame *= CFrame.new(camSpeed,0,0)
     end
 end)
-freeCamToggle.Parent = scroll
 
 ---------------------------------------------------
--- GUI DA FREE CAM (X + TELEPORTAR)
+-- ANALÓGICO TOUCH (MAIS PRA CIMA)
 ---------------------------------------------------
-local camGui = Instance.new("ScreenGui")
-camGui.Name = "FreeCamGui"
-camGui.Parent = PlayerGui
-camGui.ResetOnSpawn = false
-camGui.Enabled = false
+local dragging = false
+local lastPos
+local MIN_Y = Camera.ViewportSize.Y * 0.45 -- 👈 mais pra cima
 
--- BOTÃO SAIR (X)
-local exitBtn = Instance.new("TextButton", camGui)
-exitBtn.Size = UDim2.new(0,45,0,45)
-exitBtn.Position = UDim2.new(1,-60,0,20)
-exitBtn.Text = "X"
-exitBtn.Font = Enum.Font.GothamBold
-exitBtn.TextSize = 18
-exitBtn.TextColor3 = Color3.new(1,1,1)
-exitBtn.BackgroundColor3 = Color3.fromRGB(200,50,50)
-Instance.new("UICorner", exitBtn)
-
--- BOTÃO TELEPORTAR (AFASTADO DO X)
-local tpBtn = Instance.new("TextButton", camGui)
-tpBtn.Size = UDim2.new(0,160,0,45)
-tpBtn.Position = UDim2.new(1,-230,0,20)
-tpBtn.Text = "Teleportar Aqui"
-tpBtn.Font = Enum.Font.GothamBold
-tpBtn.TextSize = 14
-tpBtn.TextColor3 = Color3.new(1,1,1)
-tpBtn.BackgroundColor3 = Color3.fromRGB(0,170,255)
-Instance.new("UICorner", tpBtn)
-
----------------------------------------------------
--- CONTROLE DE MOVIMENTO (MOBILE + PC)
----------------------------------------------------
-UIS.InputBegan:Connect(function(input, gpe)
-    if not FREECAM_ATIVA or gpe then return end
-
-    if input.UserInputType == Enum.UserInputType.MouseButton2
-    or input.UserInputType == Enum.UserInputType.Touch then
-        rotating = true
+UserInputService.TouchStarted:Connect(function(input)
+    if FREECAM and input.Position.Y < MIN_Y then
+        dragging = true
         lastPos = input.Position
     end
-
-    if input.KeyCode == Enum.KeyCode.W then moveDir += Vector3.new(0,0,-1) end
-    if input.KeyCode == Enum.KeyCode.S then moveDir += Vector3.new(0,0,1) end
-    if input.KeyCode == Enum.KeyCode.A then moveDir += Vector3.new(-1,0,0) end
-    if input.KeyCode == Enum.KeyCode.D then moveDir += Vector3.new(1,0,0) end
-    if input.KeyCode == Enum.KeyCode.Space then moveDir += Vector3.new(0,1,0) end
-    if input.KeyCode == Enum.KeyCode.LeftShift then moveDir += Vector3.new(0,-1,0) end
 end)
 
-UIS.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton2
-    or input.UserInputType == Enum.UserInputType.Touch then
-        rotating = false
-    end
-    moveDir = Vector3.zero
+UserInputService.TouchEnded:Connect(function()
+    dragging = false
 end)
 
-UIS.InputChanged:Connect(function(input)
-    if not FREECAM_ATIVA or not rotating then return end
-    if input.UserInputType == Enum.UserInputType.MouseMovement
-    or input.UserInputType == Enum.UserInputType.Touch then
+UserInputService.TouchMoved:Connect(function(input)
+    if FREECAM and dragging and lastPos then
         local delta = input.Position - lastPos
         lastPos = input.Position
 
-        local rotX = -delta.Y * 0.002
-        local rotY = -delta.X * 0.002
-
-        camera.CFrame = camera.CFrame * CFrame.Angles(rotX, rotY, 0)
+        local sens = 0.08
+        Camera.CFrame *= CFrame.new(
+            -delta.X * sens,
+            0,
+            -delta.Y * sens
+        )
     end
-end)
-
----------------------------------------------------
--- LOOP DA FREE CAM
----------------------------------------------------
-RunService.RenderStepped:Connect(function(dt)
-    if not FREECAM_ATIVA then return end
-    camera.CFrame = camera.CFrame * CFrame.new(moveDir * camSpeed)
-end)
-
----------------------------------------------------
--- ATIVAR / DESATIVAR
----------------------------------------------------
-function ativarFreeCam()
-    FREECAM_ATIVA = true
-    camGui.Enabled = true
-    camera.CameraType = Enum.CameraType.Scriptable
-
-    local char = LocalPlayer.Character
-    if char and char:FindFirstChild("HumanoidRootPart") then
-        camera.CFrame = char.HumanoidRootPart.CFrame * CFrame.new(0,3,8)
-    end
-end
-
-function desativarFreeCam()
-    FREECAM_ATIVA = false
-    camGui.Enabled = false
-    camera.CameraType = Enum.CameraType.Custom
-    moveDir = Vector3.zero
-end
-
----------------------------------------------------
--- BOTÕES
----------------------------------------------------
-exitBtn.MouseButton1Click:Connect(function()
-    desativarFreeCam()
-end)
-
-tpBtn.MouseButton1Click:Connect(function()
-    local char = LocalPlayer.Character
-    if char and char:FindFirstChild("HumanoidRootPart") then
-        char.HumanoidRootPart.CFrame = camera.CFrame
-    end
-    desativarFreeCam()
 end)
 
 ---------------------------------------------------
