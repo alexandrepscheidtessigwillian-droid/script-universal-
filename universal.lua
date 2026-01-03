@@ -766,3 +766,77 @@ RunService.Heartbeat:Connect(function()
 		ultimoTick = tick()
 	end
 end)
+
+---------------------------------------------------
+-- AIM ASSIST (SUAVE / LEGIT)
+---------------------------------------------------
+local AIM_ASSIST_ATIVO = false
+local AIM_FOV = 120          -- campo de visão (quanto maior, mais longe puxa)
+local AIM_FORCA = 0.12       -- força do puxão (0.05 = bem leve | 0.2 = forte)
+
+-- Toggle no painel
+local aimAssistToggle = criarToggle("Aim Assist", false, function(val)
+	AIM_ASSIST_ATIVO = val
+end)
+aimAssistToggle.Parent = scroll
+
+---------------------------------------------------
+-- FUNÇÕES AUXILIARES
+---------------------------------------------------
+local Camera = workspace.CurrentCamera
+
+local function inimigoValido(player)
+	if player == LocalPlayer then return false end
+	if not player.Character then return false end
+	local hum = player.Character:FindFirstChildOfClass("Humanoid")
+	local hrp = player.Character:FindFirstChild("HumanoidRootPart")
+	if not hum or hum.Health <= 0 or not hrp then return false end
+	return ehInimigo(player)
+end
+
+local function visivel(targetPos, ignore)
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Blacklist
+	params.FilterDescendantsInstances = ignore
+	local result = workspace:Raycast(Camera.CFrame.Position, targetPos - Camera.CFrame.Position, params)
+	return result == nil
+end
+
+---------------------------------------------------
+-- LOOP DO AIM ASSIST
+---------------------------------------------------
+RunService.RenderStepped:Connect(function()
+	if not AIM_ASSIST_ATIVO then return end
+	if not gui.Enabled then return end
+
+	local melhorAlvo = nil
+	local menorDist = AIM_FOV
+
+	for _,player in ipairs(Players:GetPlayers()) do
+		if inimigoValido(player) then
+			local char = player.Character
+			local hrp = char.HumanoidRootPart
+
+			local screenPos, onScreen = Camera:WorldToViewportPoint(hrp.Position)
+			if onScreen then
+				local distTela = (Vector2.new(screenPos.X, screenPos.Y)
+					- Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)).Magnitude
+
+				if distTela < menorDist then
+					-- checa visibilidade (não puxa através de parede)
+					if visivel(hrp.Position, {LocalPlayer.Character, char}) then
+						menorDist = distTela
+						melhorAlvo = hrp
+					end
+				end
+			end
+		end
+	end
+
+	if melhorAlvo then
+		local camCF = Camera.CFrame
+		local alvoCF = CFrame.new(camCF.Position, melhorAlvo.Position)
+		Camera.CFrame = camCF:Lerp(alvoCF, AIM_FORCA)
+	end
+end)
+
