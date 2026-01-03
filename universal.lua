@@ -933,3 +933,116 @@ task.spawn(function()
 	end
 end)
 
+---------------------------------------------------
+-- GLASS BRIDGE (VISUAL + TREINO SEGURO)
+---------------------------------------------------
+
+local GLASS_VISUAL = false
+local GLASS_TREINO = false
+local GLASS_MARKS = {}
+local GLASS_CONN = nil
+
+-- Função para marcar vidro
+local function marcarVidro(part, verdadeiro)
+    if GLASS_MARKS[part] then return end
+    GLASS_MARKS[part] = true
+
+    local box = Instance.new("BoxHandleAdornment")
+    box.Adornee = part
+    box.Size = part.Size + Vector3.new(0.05,0.05,0.05)
+    box.AlwaysOnTop = true
+    box.ZIndex = 5
+    box.Transparency = 0.4
+    box.Color3 = verdadeiro and Color3.fromRGB(0,255,0) or Color3.fromRGB(255,0,0)
+    box.Parent = part
+end
+
+-- Coletar possíveis vidros
+local function coletarVidros()
+    local t = {}
+    for _,p in ipairs(workspace:GetDescendants()) do
+        if p:IsA("BasePart")
+        and p.Transparency > 0.3
+        and p.Size.Y < 2
+        and p.CanCollide ~= nil then
+            table.insert(t, p)
+        end
+    end
+    return t
+end
+
+-- Agrupar por linha Z
+local function agruparLinhas(vidros)
+    local linhas = {}
+    for _,v in ipairs(vidros) do
+        local z = math.floor(v.Position.Z / 5)
+        linhas[z] = linhas[z] or {}
+        table.insert(linhas[z], v)
+    end
+    return linhas
+end
+
+-- Analisar pares
+local function analisarVidros()
+    local vidros = coletarVidros()
+    local linhas = agruparLinhas(vidros)
+
+    for _,linha in pairs(linhas) do
+        if #linha == 2 then
+            table.sort(linha, function(a,b)
+                return a.Position.X < b.Position.X
+            end)
+
+            local esq, dir = linha[1], linha[2]
+
+            -- Teste seguro
+            if esq.CanCollide and not dir.CanCollide then
+                marcarVidro(esq, true)
+                marcarVidro(dir, false)
+            elseif dir.CanCollide and not esq.CanCollide then
+                marcarVidro(dir, true)
+                marcarVidro(esq, false)
+            end
+        end
+    end
+end
+
+-- Loop controlado
+local function iniciarGlass()
+    if GLASS_CONN then GLASS_CONN:Disconnect() end
+    GLASS_CONN = RunService.Heartbeat:Connect(function()
+        if not (GLASS_VISUAL or GLASS_TREINO) then return end
+        analisarVidros()
+    end)
+end
+
+local function pararGlass()
+    if GLASS_CONN then
+        GLASS_CONN:Disconnect()
+        GLASS_CONN = nil
+    end
+end
+
+---------------------------------------------------
+-- BOTÕES NO SEU PAINEL (SCROLL)
+---------------------------------------------------
+
+local glassVisualToggle = criarToggle("Glass Bridge - Visual", false, function(v)
+    GLASS_VISUAL = v
+    if v then iniciarGlass() else pararGlass() end
+end)
+glassVisualToggle.Parent = scroll
+
+local glassTreinoToggle = criarToggle("Glass Bridge - Treino Seguro", false, function(v)
+    GLASS_TREINO = v
+    local char = LocalPlayer.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+
+    if hum then
+        hum.WalkSpeed = v and 0 or (tonumber(speedBox.Text) or HUMANOID_SPEED)
+        hum.JumpPower = v and 0 or (tonumber(jumpBox.Text) or HUMANOID_JUMP)
+    end
+
+    if v then iniciarGlass() else pararGlass() end
+end)
+glassTreinoToggle.Parent = scroll
