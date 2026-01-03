@@ -857,58 +857,20 @@ RunService.RenderStepped:Connect(function()
 end)
 
 ---------------------------------------------------
--- AUTO FARM INTELIGENTE (SCRIPT ÚNICO)
+-- AUTO FARM BASE (ANIME BOUND - PRÉ LANÇAMENTO)
 ---------------------------------------------------
 
--- SERVIÇOS
-local Players = game:GetService("Players")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local VirtualUser = game:GetService("VirtualUser")
-
-local LocalPlayer = Players.LocalPlayer
-
----------------------------------------------------
 -- CONFIG
----------------------------------------------------
 local AUTO_FARM_ATIVO = false
 local autoFarmStartTime = 0
 
--- AJUSTE OS NOMES SE NECESSÁRIO
-local QUESTS = {
-	{
-		min = 1,
-		max = 10,
-		npcName = "QuestNPC1",
-		mobName = "Bandit",
-	},
-	{
-		min = 11,
-		max = 25,
-		npcName = "QuestNPC2",
-		mobName = "Pirate",
-	},
-	{
-		min = 26,
-		max = 9999,
-		npcName = "QuestNPC3",
-		mobName = "Elite",
-	}
-}
-
 ---------------------------------------------------
--- FUNÇÕES UTILITÁRIAS
+-- FUNÇÃO TEMPO
 ---------------------------------------------------
-local function getChar()
-	return LocalPlayer.Character
-end
-
-local function getHRP()
-	local c = getChar()
-	return c and c:FindFirstChild("HumanoidRootPart")
-end
-
 local function tempoAutoFarm()
-	if not AUTO_FARM_ATIVO then return "00h 00m" end
+	if not AUTO_FARM_ATIVO then
+		return "00h 00m"
+	end
 	local t = os.time() - autoFarmStartTime
 	local h = math.floor(t / 3600)
 	local m = math.floor((t % 3600) / 60)
@@ -916,98 +878,12 @@ local function tempoAutoFarm()
 end
 
 ---------------------------------------------------
--- LEVEL
----------------------------------------------------
-local function getLevel()
-	local stats = LocalPlayer:FindFirstChild("leaderstats")
-	if stats then
-		for _,v in ipairs(stats:GetChildren()) do
-			if v.Name:lower():find("level") then
-				return v.Value
-			end
-		end
-	end
-	return 1
-end
-
----------------------------------------------------
--- QUEST POR LEVEL
----------------------------------------------------
-local function getQuestAtual()
-	local lvl = getLevel()
-	for _,q in ipairs(QUESTS) do
-		if lvl >= q.min and lvl <= q.max then
-			return q
-		end
-	end
-end
-
----------------------------------------------------
--- TELEPORTE EXATO
----------------------------------------------------
-local function tp(cf)
-	local hrp = getHRP()
-	if hrp then
-		hrp.CFrame = cf + Vector3.new(0,3,0)
-	end
-end
-
----------------------------------------------------
--- NPC QUEST
----------------------------------------------------
-local function acharNPC(nome)
-	for _,v in ipairs(workspace:GetDescendants()) do
-		if v:IsA("Model")
-		and v.Name == nome
-		and v:FindFirstChild("HumanoidRootPart") then
-			return v
-		end
-	end
-end
-
----------------------------------------------------
--- MOB QUEST
----------------------------------------------------
-local function acharMob(nome)
-	for _,v in ipairs(workspace:GetDescendants()) do
-		if v:IsA("Model")
-		and v.Name == nome
-		and v:FindFirstChild("Humanoid")
-		and v:FindFirstChild("HumanoidRootPart")
-		and v.Humanoid.Health > 0 then
-			return v
-		end
-	end
-end
-
----------------------------------------------------
--- PEGAR QUEST (GENÉRICO)
----------------------------------------------------
-local function pegarQuest()
-	for _,r in ipairs(ReplicatedStorage:GetDescendants()) do
-		if r:IsA("RemoteEvent") and r.Name:lower():find("quest") then
-			pcall(function()
-				r:FireServer("Accept")
-			end)
-		end
-	end
-end
-
----------------------------------------------------
--- ATAQUE
----------------------------------------------------
-local function atacar()
-	VirtualUser:Button1Down(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
-	task.wait(0.05)
-	VirtualUser:Button1Up(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
-end
-
----------------------------------------------------
 -- UI (USA SEU PAINEL)
 ---------------------------------------------------
-criarLabel("Auto Farm Inteligente")
+local autoFarmLabel = criarLabel("Auto Farm (Anime Bound)")
+autoFarmLabel.Parent = scroll
 
-criarToggle("Auto Farm", false, function(v)
+local autoFarmToggle = criarToggle("Auto Farm", false, function(v)
 	AUTO_FARM_ATIVO = v
 	if v then
 		autoFarmStartTime = os.time()
@@ -1015,34 +891,44 @@ criarToggle("Auto Farm", false, function(v)
 		autoFarmStartTime = 0
 	end
 end)
+autoFarmToggle.Parent = scroll
 
-local autoFarmStatus = criarLabel("Tempo: 00h 00m")
+local autoFarmStatus = criarLabel("Status: OFF")
+autoFarmStatus.Parent = scroll
 
 ---------------------------------------------------
--- LOOP PRINCIPAL
+-- PLACEHOLDERS (SERÃO USADOS DEPOIS DO LANÇAMENTO)
+---------------------------------------------------
+local function pegarQuest()
+	-- FUTURO: RemoteEvent da quest
+end
+
+local function acharMob()
+	-- FUTURO: encontrar mob da quest
+end
+
+local function matarMob(mob)
+	-- FUTURO: ataque real
+end
+
+---------------------------------------------------
+-- LOOP
 ---------------------------------------------------
 task.spawn(function()
 	while true do
-		task.wait(0.4)
-
-		autoFarmStatus.Text = "Tempo: "..tempoAutoFarm()
+		task.wait(1)
 
 		if AUTO_FARM_ATIVO then
-			local quest = getQuestAtual()
-			if quest then
-				local npc = acharNPC(quest.npcName)
-				if npc then
-					tp(npc.HumanoidRootPart.CFrame)
-					task.wait(0.5)
-					pegarQuest()
-				end
+			autoFarmStatus.Text = "ON | Tempo: "..tempoAutoFarm()
 
-				local mob = acharMob(quest.mobName)
-				if mob then
-					tp(mob.HumanoidRootPart.CFrame)
-					atacar()
-				end
+			-- Chamadas prontas (não quebram)
+			pegarQuest()
+			local mob = acharMob()
+			if mob then
+				matarMob(mob)
 			end
+		else
+			autoFarmStatus.Text = "OFF | Tempo: 00h 00m"
 		end
 	end
 end)
