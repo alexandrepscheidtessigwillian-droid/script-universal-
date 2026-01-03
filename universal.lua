@@ -691,3 +691,78 @@ RunService.RenderStepped:Connect(function()
         hum.CameraOffset = Vector3.new(0,0,0)
     end
 end)
+
+---------------------------------------------------
+-- ANTI AFK (APENAS COM JANELA VISÍVEL + STATUS)
+---------------------------------------------------
+local VirtualUser = game:GetService("VirtualUser")
+
+local ANTI_AFK_ATIVO = false
+local AntiAFK_Connection = nil
+local AFK_Tempo = 0 -- segundos
+
+-- LABEL DE STATUS (ABAIXO DO BOTÃO)
+local afkStatusLabel = Instance.new("TextLabel")
+afkStatusLabel.Size = UDim2.new(1,0,0,20)
+afkStatusLabel.BackgroundTransparency = 1
+afkStatusLabel.Text = "Status: OFF | Tempo: 00:00"
+afkStatusLabel.TextColor3 = Color3.fromRGB(180,180,180)
+afkStatusLabel.Font = Enum.Font.Gotham
+afkStatusLabel.TextSize = 13
+afkStatusLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+-- BOTÃO TOGGLE (USA SEU PADRÃO)
+local antiAfkToggle = criarToggle("Anti-AFK", false, function(val)
+	ANTI_AFK_ATIVO = val
+
+	if val then
+		-- LIGAR
+		AFK_Tempo = 0
+		afkStatusLabel.Text = "Status: ON | Tempo: 00:00"
+
+		if not AntiAFK_Connection then
+			AntiAFK_Connection = LocalPlayer.Idled:Connect(function()
+				-- ❗ SÓ FUNCIONA SE A GUI ESTIVER VISÍVEL
+				if ANTI_AFK_ATIVO and gui.Enabled then
+					VirtualUser:Button2Down(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
+					task.wait(1)
+					VirtualUser:Button2Up(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
+				end
+			end)
+		end
+	else
+		-- DESLIGAR
+		AFK_Tempo = 0
+		afkStatusLabel.Text = "Status: OFF | Tempo: 00:00"
+
+		if AntiAFK_Connection then
+			AntiAFK_Connection:Disconnect()
+			AntiAFK_Connection = nil
+		end
+	end
+end)
+
+antiAfkToggle.Parent = scroll
+afkStatusLabel.Parent = scroll
+
+---------------------------------------------------
+-- CONTADOR DE TEMPO (HORAS : MINUTOS)
+---------------------------------------------------
+local ultimoTick = tick()
+
+RunService.Heartbeat:Connect(function()
+	if ANTI_AFK_ATIVO and gui.Enabled then
+		local agora = tick()
+		AFK_Tempo += (agora - ultimoTick)
+		ultimoTick = agora
+
+		local totalMin = math.floor(AFK_Tempo / 60)
+		local horas = math.floor(totalMin / 60)
+		local minutos = totalMin % 60
+
+		afkStatusLabel.Text =
+			string.format("Status: ON | Tempo: %02d:%02d", horas, minutos)
+	else
+		ultimoTick = tick()
+	end
+end)
