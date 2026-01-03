@@ -768,11 +768,11 @@ RunService.Heartbeat:Connect(function()
 end)
 
 ---------------------------------------------------
--- AIM ASSIST (CORRIGIDO - TORAX)
+-- AIM ASSIST (TRAVA EIXO Y - NÃO SOBE)
 ---------------------------------------------------
 local AIM_ASSIST_ATIVO = false
-local AIM_FOV = 140
-local AIM_FORCA = 0.08 -- MAIS SUAVE (IMPORTANTE)
+local AIM_FOV = 130
+local AIM_FORCA = 0.15 -- força só horizontal
 
 local aimAssistToggle = criarToggle("Aim Assist", false, function(val)
 	AIM_ASSIST_ATIVO = val
@@ -790,12 +790,9 @@ local function inimigoValido(player)
 
 	local hum = player.Character:FindFirstChildOfClass("Humanoid")
 	local root = player.Character:FindFirstChild("HumanoidRootPart")
-	local torso =
-		player.Character:FindFirstChild("UpperTorso")
-		or player.Character:FindFirstChild("Torso")
+	if not hum or hum.Health <= 0 or not root then return false end
 
-	if not hum or hum.Health <= 0 or not root or not torso then return false end
-	return ehInimigo(player), torso
+	return ehInimigo(player), root
 end
 
 local function visivel(pos, ignore)
@@ -816,13 +813,13 @@ RunService.RenderStepped:Connect(function()
 	if not AIM_ASSIST_ATIVO then return end
 	if not gui.Enabled then return end
 
-	local melhorTorso = nil
+	local melhorAlvo = nil
 	local menorDist = AIM_FOV
 
 	for _,player in ipairs(Players:GetPlayers()) do
-		local ok, torso = inimigoValido(player)
+		local ok, root = inimigoValido(player)
 		if ok then
-			local screenPos, onScreen = Camera:WorldToViewportPoint(torso.Position)
+			local screenPos, onScreen = Camera:WorldToViewportPoint(root.Position)
 			if onScreen then
 				local centro = Vector2.new(
 					Camera.ViewportSize.X/2,
@@ -834,20 +831,27 @@ RunService.RenderStepped:Connect(function()
 				).Magnitude
 
 				if dist < menorDist then
-					if visivel(torso.Position, {LocalPlayer.Character, player.Character}) then
+					if visivel(root.Position, {LocalPlayer.Character, player.Character}) then
 						menorDist = dist
-						melhorTorso = torso
+						melhorAlvo = root
 					end
 				end
 			end
 		end
 	end
 
-	if melhorTorso then
-		local camPos = Camera.CFrame.Position
-		local alvoPos = melhorTorso.Position + Vector3.new(0, 0.1, 0) -- ajuste fino
-		local alvoCF = CFrame.new(camPos, alvoPos)
+	if melhorAlvo then
+		local camCF = Camera.CFrame
+		local camPos = camCF.Position
 
-		Camera.CFrame = Camera.CFrame:Lerp(alvoCF, AIM_FORCA)
+		-- 🔒 TRAVA ALTURA DA MIRA
+		local alvoPos = Vector3.new(
+			melhorAlvo.Position.X,
+			camPos.Y, -- NÃO MEXE NO Y
+			melhorAlvo.Position.Z
+		)
+
+		local alvoCF = CFrame.new(camPos, alvoPos)
+		Camera.CFrame = camCF:Lerp(alvoCF, AIM_FORCA)
 	end
 end)
