@@ -768,75 +768,86 @@ RunService.Heartbeat:Connect(function()
 end)
 
 ---------------------------------------------------
--- AIM ASSIST (SUAVE / LEGIT)
+-- AIM ASSIST (CORRIGIDO - TORAX)
 ---------------------------------------------------
 local AIM_ASSIST_ATIVO = false
-local AIM_FOV = 120          -- campo de visão (quanto maior, mais longe puxa)
-local AIM_FORCA = 0.12       -- força do puxão (0.05 = bem leve | 0.2 = forte)
+local AIM_FOV = 140
+local AIM_FORCA = 0.08 -- MAIS SUAVE (IMPORTANTE)
 
--- Toggle no painel
 local aimAssistToggle = criarToggle("Aim Assist", false, function(val)
 	AIM_ASSIST_ATIVO = val
 end)
 aimAssistToggle.Parent = scroll
 
 ---------------------------------------------------
--- FUNÇÕES AUXILIARES
+-- FUNÇÕES
 ---------------------------------------------------
 local Camera = workspace.CurrentCamera
 
 local function inimigoValido(player)
 	if player == LocalPlayer then return false end
 	if not player.Character then return false end
+
 	local hum = player.Character:FindFirstChildOfClass("Humanoid")
-	local hrp = player.Character:FindFirstChild("HumanoidRootPart")
-	if not hum or hum.Health <= 0 or not hrp then return false end
-	return ehInimigo(player)
+	local root = player.Character:FindFirstChild("HumanoidRootPart")
+	local torso =
+		player.Character:FindFirstChild("UpperTorso")
+		or player.Character:FindFirstChild("Torso")
+
+	if not hum or hum.Health <= 0 or not root or not torso then return false end
+	return ehInimigo(player), torso
 end
 
-local function visivel(targetPos, ignore)
+local function visivel(pos, ignore)
 	local params = RaycastParams.new()
 	params.FilterType = Enum.RaycastFilterType.Blacklist
 	params.FilterDescendantsInstances = ignore
-	local result = workspace:Raycast(Camera.CFrame.Position, targetPos - Camera.CFrame.Position, params)
-	return result == nil
+	return not workspace:Raycast(
+		Camera.CFrame.Position,
+		pos - Camera.CFrame.Position,
+		params
+	)
 end
 
 ---------------------------------------------------
--- LOOP DO AIM ASSIST
+-- LOOP PRINCIPAL
 ---------------------------------------------------
 RunService.RenderStepped:Connect(function()
 	if not AIM_ASSIST_ATIVO then return end
 	if not gui.Enabled then return end
 
-	local melhorAlvo = nil
+	local melhorTorso = nil
 	local menorDist = AIM_FOV
 
 	for _,player in ipairs(Players:GetPlayers()) do
-		if inimigoValido(player) then
-			local char = player.Character
-			local hrp = char.HumanoidRootPart
-
-			local screenPos, onScreen = Camera:WorldToViewportPoint(hrp.Position)
+		local ok, torso = inimigoValido(player)
+		if ok then
+			local screenPos, onScreen = Camera:WorldToViewportPoint(torso.Position)
 			if onScreen then
-				local distTela = (Vector2.new(screenPos.X, screenPos.Y)
-					- Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)).Magnitude
+				local centro = Vector2.new(
+					Camera.ViewportSize.X/2,
+					Camera.ViewportSize.Y/2
+				)
 
-				if distTela < menorDist then
-					-- checa visibilidade (não puxa através de parede)
-					if visivel(hrp.Position, {LocalPlayer.Character, char}) then
-						menorDist = distTela
-						melhorAlvo = hrp
+				local dist = (
+					Vector2.new(screenPos.X, screenPos.Y) - centro
+				).Magnitude
+
+				if dist < menorDist then
+					if visivel(torso.Position, {LocalPlayer.Character, player.Character}) then
+						menorDist = dist
+						melhorTorso = torso
 					end
 				end
 			end
 		end
 	end
 
-	if melhorAlvo then
-		local camCF = Camera.CFrame
-		local alvoCF = CFrame.new(camCF.Position, melhorAlvo.Position)
-		Camera.CFrame = camCF:Lerp(alvoCF, AIM_FORCA)
+	if melhorTorso then
+		local camPos = Camera.CFrame.Position
+		local alvoPos = melhorTorso.Position + Vector3.new(0, 0.1, 0) -- ajuste fino
+		local alvoCF = CFrame.new(camPos, alvoPos)
+
+		Camera.CFrame = Camera.CFrame:Lerp(alvoCF, AIM_FORCA)
 	end
 end)
-
